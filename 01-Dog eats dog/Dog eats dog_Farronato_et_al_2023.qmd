@@ -1,0 +1,612 @@
+---
+title: "Dog eats dog"
+description: "论文复现"
+format:
+  html: 
+    code-fold: false
+    html-math-method: katex
+  pdf: default
+  docx: default
+execute:
+  echo: true
+  eval: true
+  include: true
+  output: true
+  warning: false
+toc: TRUE
+number-sections: TRUE
+crossref:
+  chapters: true
+  fig-title: 图     # (default is "Figure")
+  tbl-title: 表     # (default is "Table")
+  title-delim: "."  # (default is " "), not for pdf
+  fig-prefix: 图   # (default is "Figure")
+  tbl-prefix: 表   # (default is "Table")
+  eq-prefix: 式
+  sec-prefix: "§"
+highlight-style: pygments
+code-overflow: wrap
+editor: visual 
+---
+
+```{r warning=FALSE, include=FALSE}
+#| eval: false
+# 准备工作
+setwd("")
+
+
+rm(list=ls())
+
+# 数据/图片/表格路径设置
+code_dir <- paste0(getwd(),"/code/")
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+
+# 从Github上安装包
+# install.packages("remotes")                     # 1. 从 CRAN 安装 remotes 包
+# remotes::install_github("jbisbee1/dyadRobust")  # 2. 从 Github 安装 dyadRobust 包
+
+```
+
+本文是发表在2024年1月份 *Management Science* 上的文献[*Dog Eat Dog: Balancing Network Effects and Differentiation in a Digital Platform Merger*](https://pubsonline.informs.org/doi/10.1287/mnsc.2023.4675)。这篇文章聚焦数字平台并购中 “网络效应” 与 “平台差异化” 的核心矛盾，将美国两大宠物托管平台（Rover 与 DogVacay）2017 年合并事件作为准自然实验，通过因果识别揭示两者的相互作用，为平台战略与反垄断监管提供实证依据。
+
+# 研究背景
+
+## 核心研究问题
+
+数字平台常以 “网络效应（用户规模扩大提升价值）” 为由推动并购，追求单一主导平台。但在实际市场中，不同平台之间往往有一定的差异以满足不同偏好的用户，例如有些平台侧重于配送速度，有些平台侧重于商品多样性。当用户存在异质偏好时，单一平台可能因 “差异化损失” 抵消网络效应收益。因此，当平台存在差异化且网络效应不够强的时候，将所有用户吸引到单一平台的策略可能并不合理。本文核心研究问题如下：
+
+-   数字平台并购中，网络效应与平台差异化如何相互作用？
+
+-   合并后的单一平台是否比合并前的多平台更能提升用户福利与市场效率？
+
+## 行业与案例背景
+
+### 宠物托管平台行业特征
+
+-   宠物行业市场规模庞大且持续增长。美国有68%的家庭拥有宠物，其中75%的家庭养狗。Rover和DogVacay是线上狗寄养市场的最大参与者，并且下一个最大的竞争对手Wag主要提供遛狗服务
+-   典型双边市场：买方（宠物主人）寻求托管服务，卖方（托管者）提供服务
+-   服务具有**本地性**：79% 订单发生在同一区域（按邮编划分），可按地理划分独立市场
+-   合并前 Rover 为行业龙头，DogVacay 是其最大竞争对手。两者功能、服务相似，但在算法排序等方面存在差异
+
+### Rover 与 DogVacay 合并细节
+
+-   2017年2月达成合并协议 -\> 3月公开宣布 -\> 5月宣布关停DogVacay -\> 7月正式关停，用户可选择迁移至Rover
+
+-   合并后仅保留 Rover 单一平台，且合并未被反垄断机构调查，为研究提供 “无监管干扰” 的自然实验场景
+
+-   合并前，两个平台在不同地区的市场份额具有差异，因此一些地区的用户数量增长会更为显著
+
+-   合并前，两个平台的费率相近；合并后，收购方也没有提高名义或实际的佣金费率，这一变量得到控制
+
+-   用户通过e-mail迁移，从而可以在两个平台上识别出同一用户
+
+![合并前后两平台的费率](results_realdata/figures/agg_rover_feepct.jpeg){fig-align="center" width="430"}
+
+# 理论模型：Hotelling Model
+
+## 模型设定
+
+-   **平台**：收购方($\alpha$, Rover)在0处，被收购方($\beta$, DogVacay)在1处。
+-   **用户**：$d_i \sim U(0,1)$，用户$i$的位置$d_i$表示对两个平台的偏好程度。
+-   **用户效用**：
+    -   对于用户$i$，使用平台$\alpha$的效用是$u_{i\alpha}=v(n_\alpha)-d_i$, 使用平台$\beta$的效用是$u_{i\beta}=v(n_\beta)-(1-d_i)$
+        -   $n_\alpha, n_\beta$分别表示均衡时使用两个平台的人数,
+        -   $v(·)$表示网络效应函数，如果网络效应存在，那么$v(·)$应当是一个增函数
+    -   用户也可以选择不使用任何平台（$Outside Option$），这样他的效用$\epsilon_i \sim U(-1,1)$
+-   **市场结构**：
+    -   合并前：
+        -   给定外生分割点$k_1$。对于$d_i \leq k_1$的用户，只了解平台$\alpha$；对于$d_i > k_1$的用户，只了解平台$\beta$。
+        -   用户对平台人数有理性的预期，即用户知道均衡时各平台的用户数量$n_\alpha$, $n_\beta$
+    -   合并后：
+        -   只有平台$\alpha$的选项，此时平台$\alpha$均衡时的用户数量为$n^*$
+
+## 平台合并前用户效用：
+
+| 平台 | 用户 | 均衡时的平均效用 |
+|:----------------------:|:----------------------:|:----------------------:|
+| $\alpha$ | $d_i<k_1$，并且$v(n_\alpha)-d_i \geq \epsilon_i$ | $E(u_{i\alpha})=v(n_\alpha)-\displaystyle\iint\limits_{\alpha}\frac{d_i}{2n_\alpha}\partial d_i\partial\epsilon$ |
+| $\beta$ | $d_i\geq k_1$，并且$v(n_\beta)-(1-d_i) \geq \epsilon_i$ | $E(u_{i\beta})=v(n_\beta)-\displaystyle\iint\limits_{\beta}\frac{1-d_i}{2n_\beta}\partial d_i\partial \epsilon$ |
+
+## 平台合并后用户效用变化：
+
+-   对于平台$\alpha$的用户, 由于使用人数增加，网络效应增加，无差异曲线上移；对于平台$\beta$的用户，一部分选择转移至平台$\alpha$，另一部分选择外部选项。从而共分为四类人群：
+
+| 用户 | 选择 | 福利变化 |
+|:----------------------:|:----------------------:|:----------------------:|
+| A | 平台$\alpha$ -\> 平台$\alpha$ | $\Delta u_A = v(n^*)-v(n_{\alpha})$ |
+| B | 平台$\beta$ -\> 平台$\alpha$ | $\Delta u_B = v(n^*)-v(n_{\beta})- \left[ \displaystyle\int_{k_1}^{1}(d_i+k_1-1)f(d_i)\partial d_i \right]$ |
+| C | Outside -\> 平台$\alpha$ | $u_{post\_\alpha} \geq \epsilon_i \geq u_{pre}$ |
+| D | 平台$\beta$ -\> Outside | $u_{post\_\alpha} \leq \epsilon_i \leq u_{pre\_\beta}$ |
+
+-   用户在d-e空间上的分布如下图所示：
+
+```{R}
+#| eval: false
+#| include: false
+
+source('code/figure1.plot_user_types.R')
+plot_user_types
+
+```
+
+![用户分类表示](results_realdata/figures/figure_1_plot_user_types.png){fig-align="center" width="418"}
+
+## 平台市场份额对效用的影响：
+
+-   从上到下的四条曲线分别表示平台（用户）从网络效应中获得的总收益、平台从合并中获得的净收益、市场（包括不使用平台的人）从合并中获得的总效用、平台因差异化减少而受到的损失。
+
+-   由图可知，在两个平台的市场份额接近的地区，即竞争激烈的地区，合并给平台带来的净收益最大。
+
+```{R}
+#| eval: false
+#| include: false
+
+source('code/figure2.plot_merger_gains.R')
+plot_merger_gains
+
+```
+
+![合并前平台占据不同份额时效用的变化](results_realdata/figures/figure2_plot_merger_gains.png){fig-align="center" width="422"}
+
+## 待检验假设：
+
+-   **H1：**如果网络效应存在，那么合并后A类用户将受益，即v(·)是关于n的增函数。并且合并前$\alpha$平台规模（$n_\alpha$）越小，合并后用户流入越大，现有平台$\alpha$的买家受益也越大。
+
+-   **H2：**考虑两个地区，其中一个地区，平台$\alpha$有$\bar n$数量的买家，在另一个地区平台$\beta$有$\bar n$数量的买家。如果买家对平台有偏好差异，那么合并后，第二个地区的B类用户收益应小于第一个地区的A类用户的收益。
+
+-   **H3：**当网络效应的收益超过平台差异化降低导致的损失时，在两个平台的市场份额接近的地区，即竞争激烈的地区，合并带来的收益最大化。
+
+# 实证分析
+
+## 数据来源与处理
+
+-   只关注Rover与DogVacay平台上的宠物狗夜间寄养业务，排除**其他业务**
+
+-   排除**异常值**（价格低于1美元、高于200美元，预定时长为负或超过1个月， 佣金费率超过30%）
+
+-   排除**多归属**的用户（在收购前的五年中在两个平台上至少都进行过一次交易）
+
+*（论文实际使用Rover的专有数据，但在复现时只能使用模拟数据。）*
+
+## 市场分组：基于并购前市场份额
+
+以 2016 年（并购前 1 年）Rover 按照**GTV(**gross transaction volume, 毛交易量**)计算的市场份额**（Rover GTV / 两平台总 GTV）为依据，将不同市场（按邮编划分）分为 5 组： - 处理组：4 组，市场份额分别为 0-20%、20-40%、40-60%、60-80%（并购后涌入 DogVacay 用户规模不同，认为不同组间的网络效应强度有差异）。 - 控制组：1 组，市场份额 \> 80%（Rover 已主导，并购后涌入 DogVacay 用户极少，受网络效应与差异化影响最小）。在后续的估计中，作者允许不同处理组的处理效应不同，因为理论预测处理效应非线性。
+
+```{R}
+#| eval: false
+#| include: false
+
+rm(list=ls())
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+
+source('code/figure5_plot_dist_shares.R')
+plot_dist_shares
+
+```
+
+使用实际数据的分组情况如下图：
+
+![按照2016年Rover平台市场份额分组](results_realdata/figures/shares_sample_dist.png){fig-align="center" width="463"}
+
+作者认为这样分组是有效的，因为在合并后，Rover用户数量的增长在不同组之间的差别是很显著的。
+
+![2016\~2017年Rover平台用户增长](results_realdata/figures/Figure%20C.4.png){fig-align="center" width="457"}
+
+## 匹配方法：协变量平衡倾向得分匹配
+
+**内生性问题：**在收购之前，单一平台(Rover或DogVacay)占主导地位的邮编区域通常更偏农村，居民较少，人口密度较低，大学毕业生比例也较低。Rover特别成功的地区往往宠物拥有率也更高。
+
+–\> 平行趋势假设可能并不成立
+
+**协变量平衡倾向得分匹配( Imai & Ratkovic (2014) )**：
+
+-   匹配协变量：并购前 12 个月的 “活跃卖方数量”（定义为每月至少参与 1 次 booking inquiry 的卖方），确保匹配后的处理组与控制组 “用户基础规模” 相似；
+
+-   匹配规则：1:1 匹配（1 个控制组邮编区域对应 1 个处理组邮编区域），且匹配后控制组固定，避免结果波动。
+
+```{R}
+#| eval: false
+#| include: false
+
+rm(list=ls())
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+
+# 并行计算设置
+# detectCores(logical = F) # 查询电脑物理核数
+num_cores <- 2 
+
+# 一些准备工作
+source('code/figure6_step0_preparation.R')
+source('code/figure6_step0_functions.R')
+
+# 数据预处理: this_sample
+stays_convos_needs_agg <- fread(paste0(data_dir, 'stays_convos_needs_agg_bygrid_zip_seller.csv'))
+source('code/figure6_step1_data_process.R')
+
+this_sample[, c('time_id', 'market_grp', 'is_treatment', 'unique_sitters', 'log_stays', 'rover_share_cut')][sample(nrow(this_sample), 20), ]
+
+# 协变量倾向得分匹配: matching_list
+source('code/figure6_step2_matching.R')
+
+df_matching_list <- function(matching_list) {
+  data_list <- list()
+  for (j in 1:(length(unique_groups) - 1)) {
+    bin = unique_groups[j]
+    results = matching_list[[j]]
+    markets = gsub("\\..*","",names(results$att))
+    matchedsets = data.table()
+    for (i in 1:length(markets)) {
+      weights <- attr(results$att[[i]], 'weights') 
+      set = data.table(market_grp = as.numeric(markets[i]),           
+                       control = as.numeric(names(which(weights> 0))), 
+                       weight = weights[which(weights > 0)])           
+      matchedsets = rbind(matchedsets, set)                            
+    }
+    matchedsets[, eps := rnorm(nrow(matchedsets))]          
+    matchedsets[, n := .N, .(market_grp)]                   
+    matchedsets <- matchedsets[order(market_grp, eps)]      
+    matchedsets[, ind := 1:.N, .(market_grp)]               
+    matchedsets <- matchedsets[ind == 1]                    
+    matchedsets <- matchedsets[, list(market_grp, control)] 
+    data_list[[j]] <- matchedsets
+  }
+  data_list
+}
+
+matched_list <- df_matching_list(matching_list)
+matching_list[[1]]
+head(matched_list[[1]])
+
+# rm(matched_list, df_matching_list)
+
+```
+
+## 模型 1：检验网络效应
+
+并购对 Rover 用户的影响
+
+### 假设 1：
+
+-   如果网络效应存在，那么合并后A类用户将受益，即v(·)是关于n的增函数。并且合并前$\alpha$平台规模（$n_\alpha$）越小，合并后用户流入越大，现有平台$\alpha$的买家受益也越大。
+-   低份额组（0-20%）Rover 用户交易数 / 匹配率增长＞高份额组（60-80%），且显著为正
+
+### 回归方程：
+
+$$
+y_{zt} - y_{z't} = \beta + \alpha_{t,t \neq \text{Feb'17}} + \epsilon_{zz't}
+$$
+
+-   变量定义：
+
+    -   被解释变量：$y_{zt}$为处理组邮编区域$z$在月份$t$的结果变量（如 Rover 用户交易数、匹配率）；$y_{z't}$为匹配控制组邮编区域$z'$在同月$t$的结果变量，两者差值反映 “处理组相对控制组的差异”。结果变量包括 “总交易量”（用户活跃度）、“匹配率”（交易达成数 / 请求数，反映匹配效率）
+
+    -   核心解释变量：$\alpha_{t,t \neq \text{Feb '17}}$为处理效应（$t$≠2017 年 2 月），若$\alpha_t>0$且随 Rover 市场份额降低而增大，证明网络效应存在；
+
+    -   控制项：$\beta$为常数项，$\varepsilon_{zz't}$为误差项；
+
+    -   分组：按照市场份额分组，在组内也对Rover用户和DogVacay用户分别进行回归
+
+### 回归结果
+
+```{R}
+#| eval: false
+#| include: false
+
+
+# 平台层面 DID 回归分析
+stays_convos_needs_agg_platform = fread(paste0(data_dir, 'needs_convos_stays_agg_zip_seller_buyersbyplat_1year.csv'))
+source('code/figure6_step3_DID_platform.R')
+
+# load(paste0(figures_dir_matching,'plot_list_matched_Rover.RData'))
+# load(paste0(figures_dir_matching,'plot_list_matched_DogVacay.RData'))
+
+paired_dv <- paired_data_list
+
+outcomes
+str(paired_dv[[1]])
+paired_dv[[1]][,c("log_stays_treat","log_stays_control","log_stays_diff")][sample(nrow(paired_dv[[1]]),10),]
+
+# rm(paired_dv)
+
+# 绘制 figure 6
+source('code/figure6_step4_plot.R')
+
+gg1 # figure 6a
+gg2 # figure 6b
+
+```
+
+使用真实数据的结果如下图所示：
+
+![Figure6_a: Rover平台用户的效用变化](results_realdata/figures/did_zip_seller/figure_6a.png){fig-align="center" width="5403"}
+
+![Figure6_b: DogVacay平台用户的效用变化](results_realdata/figures/did_zip_seller/figure_6b.png){fig-align="center" width="5403"}
+
+### 结论：支持假设1
+
+-   由图6(a)上半部分可以看出，**网络效应存在，并且大小依赖于 Rover 合并前的市场份额 。**（ 支持假设 H1 ）
+
+-   由图6(a)下半部分可以看出，Rover平台用户的**“匹配效率”没有改善**。说明收益仅来自 “更多用户”（广度），而非 “更高效率”（深度），进一步验证是网络效应（供需总量增加）。
+
+-   由图6(b)可以看出，相比控制组，DogVacay 买家的流失率更高，匹配率更低。并且在DogVacay市场份额更高的地区，买家受到的损失更大。
+
+## 模型 2：检验平台差异化损失
+
+Rover 与 DogVacay 用户的对比
+
+### 假设 2：
+
+-   考虑两个地区，其中一个地区，平台$\alpha$有$\bar n$数量的买家，在另一个地区平台$\beta$有$\bar n$数量的买家。如果买家对平台有偏好差异，那么合并后，DogVacay 切换用户比 Rover 留存用户收益更少
+-   相同份额规模下，DogVacay 用户交易数 / 匹配率＜Rover 用户，差异源于差异化损失
+
+### 回归方程：
+
+$$
+y_{zt} = \gamma_{t,t \neq \text{Feb '17}} \cdot ⁢𝟙⁢\{z \in [80\%-s, 100\%-s)\} + \delta_t + \nu_z + \epsilon_{zt}
+$$
+
+-   变量定义：
+
+    -   被解释变量：$y_{zt}$为 “Rover 用户在份额区间$[s, s+20\%)$” 或 “DogVacay 用户在份额区间$[80\%-s, 100\%-s)$” 的结果变量（对称市场对比，保证网络效应相同），用户为单归属用户。
+
+    -   核心解释变量：$\gamma_t$为我们估计的两类用户间的收益差值，若$\gamma_t<0$，证明 DogVacay 用户因差异化损失受损；
+
+    -   控制项：$\delta_t$为月份固定效应，$\nu_z$为区域固定效应，$\epsilon_{zt}$为误差项；
+
+    -   分组：按照$s \in \{0,20\%,40\%,60\%,80\%\}$分组回归，且Rover与DogVacay对称。（如$s=0$时, 对$z \in [0,20\%)$的Rover用户和$z \in [80\%,100\%)$的DogVacay 用户进行回归）。
+
+### 回归结果
+
+```{R}
+#| eval: false
+#| include: false
+
+rm(list=ls())
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+
+source('code/figure7.R')
+
+big_plot
+
+```
+
+使用真实数据的结果如下图所示：
+
+![Figure7: DogVacay平台用户相对于Rover平台用户的效用变化](results_realdata/figures/did_zip_seller/dv_v_rv.png){width="726"}
+
+### 结论：支持假设2
+
+-   所有对称市场中，DogVacay 用户的交易数和匹配率均显著低于 Rover 用户，且差异稳定。考虑到对称市场中网络效应相同，这种差异不能用网络效应解释。
+
+-   损失从合并谈判期（2017 年 1-2 月）已显现，关停后进一步恶化，说明用户对差异化的依赖是长期的，而非短期适应问题。
+
+### 机制分析
+
+-   在**DogVacay平台关闭后的交易次数**为结果变量，分析DogVacay用户效用受损的因素：
+
+```{R}
+#| eval: false
+#| include: false
+
+rm(list=ls())
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+
+source('code/table1.R')
+
+table_df
+
+```
+
+![Table 1. DogVacay平台关闭后买家的交易量](results_realdata/tables/Table%201.png){fig-align="center" width="756"}
+
+-   **脱中介化**：50.8% 的 2016 年交易是重复交易，这类用户对卖家信任度高，平台关停后可能绕开平台，转向线下交易。
+
+    -   对比第一列与第二列的结果，可以发现有重复交易的DogVacay用户相比没有重复交易的用户，平均额外减少了0.2381笔交易
+
+-   **协调失败**：并非所有 DogVacay 卖家都迁移到 Rover，若买家找不到原合作卖家，可能放弃平台。
+
+    -   对比第二列与第三列的结果，若原卖家迁移，DogVacay用户交易数平均增加 0.0634 笔；对于有重复交易的用户，若原卖家迁移，交易数额外增加 0.1712 笔，流失几乎完全缓解。 反之，对比第一行数据，若原卖家未迁移，用户因找不到信任的卖家，流失加剧。
+
+-   **转换成本**：高活跃用户对原平台更依赖，转换成本更高，流失更严重。
+
+    -   对比第三列与第四列结果，对于高活跃的 DogVacay 用户，他们在2016年的交易数每多一笔，合并后平均交易数额外减少 0.0937 笔。
+
+-   **稳健性检验：**对于卖家数据的平行分析也得到了类似的结果（附录图C.5）
+
+## 模型 3：检验市场层面的效应
+
+市场层面的对比
+
+### 假设 3：
+
+-   网络效应的收益超过平台差异化降低导致的损失，且在两个平台的市场份额接近的地区，即竞争激烈的地区，合并带来的收益最大化。
+-   中间份额组（40-60%）市场总交易数 / 匹配率增长＞其他份额组，且显著为正
+
+### 回归方程：
+
+$$
+y_{zt} - y_{z't} = \beta + \alpha_{t,t \neq \text{Feb'17}} + \epsilon_{zz't}
+$$
+
+-   变量定义：
+
+    -   被解释变量：与模型1相同，但是为合并的结果（即不对两个平台的用户分别回归）
+
+    -   核心解释变量：若$\alpha_t$无统计显著性，证明网络效应与差异化损失抵消。
+
+### 回归结果
+
+```{R}
+#| eval: false
+#| include: false
+
+rm(list=ls())
+results_dir <- paste0(getwd(), "/results/")
+data_dir <- paste0(getwd(), "/data/")
+num_cores <- 2 
+
+# 准备工作
+source('code/figure6_step0_preparation.R')
+source('code/figure6_step0_functions.R')
+stays_convos_needs_agg <- fread(paste0(data_dir, 'stays_convos_needs_agg_bygrid_zip_seller.csv'))
+source('code/figure6_step1_data_process.R')
+source('code/figure6_step2_matching.R')
+
+# 市场层面 DID 回归分析
+source('code/figure8_step3_DID_market.R')
+
+outcomes
+str(paired_data_list[[1]])
+paired_data_list[[1]][,c("log_gtv_rover_treat","log_gtv_rover_control","log_gtv_rover_diff")][sample(nrow(paired_data_list[[1]]),10),]
+
+# 画图 figure 8
+source('code/figure8_step4_plot.R')
+gg5
+gg6
+
+# 画图 figure 9
+source('code/figure9_step4_plot.R')
+gg7
+
+```
+
+使用真实数据的结果如下图所示：
+
+![Figure8_a: 市场层面的净效用变化](results_realdata/figures/did_zip_seller/figure_8a.png){fig-align="center" width="5403"}
+
+![Figure8_b: 新用户的效用变化](results_realdata/figures/did_zip_seller/figure_8b.png){fig-align="center" width="5403"}
+
+![Figure9: 平台和商户的收入变化](results_realdata/figures/did_zip_seller/figure_9.png){fig-align="center" width="5403"}
+
+### 结论：拒绝假设3
+
+-   在Rover份额为 40% \~ 60%的区域，虽然合并后交易数量出现了轻微上升，但是这一效应在统计上并不显著。
+
+-   市场总效应：所有份额组的总效应均无显著正收益，说明网络效应与差异化损失完全抵消，不存在 “网络效应主导” 的情况，因此拒绝 H3
+
+-   新用户验证：从图8b看出，新用户的交易数和匹配率也无显著变化，说明即使没有使用习惯的差异，单一平台也并不会更好。
+
+-   排除价值再分配机制：合并后的 GTV 和佣金费与合并前两个竞争对手的 GTV 和佣金费总和相当，证明买家的改善并不是来自于商户/平台的让利。
+
+## 总结
+
+-   作者证明了网络效应的存在。但这不足以支持平台的合并策略。因为即使是两个非常相似的平台，平台合并导致的差异化损失也足以抵消网络效应带来的收益。以至于在市场层面平均来看，用户无论是使用一个还是两个平台，境况都差不多。结合平台价格在合并后并未上涨的事实，研究表明就平均而言，单一平台并未比两个竞争平台提供更大的消费者剩余。
+
+-   重复交易在抵消网络效应方面发挥着重要作用。因此，平台差异化在提供儿童托管的平台上可能更为重要，因为重复交易更为频繁，而在网约车平台上则相对不那么重要，因为重复交易较为罕见。
+
+# 扩展分析：
+
+## 其他结果变量
+
+（附录图A.1 \~ A.4）
+
+-   **平均每晚价格（对数）**：无论是市场层面还是平台用户层面，均无显著变化。说明网络效应并没有带来价格溢价，差异化损失也没有导致价格下跌，排除 “价值在买家 - 卖家 - 平台间再分配” 的可能。
+
+-   **重复交易率/五星评价率/再次请求率**：无论是市场层面还是平台用户层面，均无显著变化。说明网络效应仅带来“交易数量增长”（更多供需匹配机会），但未改善 “匹配质量”（稳定性、满意度、粘性），进一步证明网络效应的局限性。
+
+-   **买家（卖家）数量（对数）**：\[0\~20%)组别Rover平台增长15%，DogVacay平台减少12%，总买家无显著变化。说明Rover 的用户增长完全被 DogVacay 的流失抵消。
+
+## 其他样本
+
+（附录图A.5 \~ A.6）
+
+-   **多归属用户：**仅对多归属用户进行分析，发现交易数增长低于Rover平台用户，高于DogVacay用户。匹配效率无显著提升。说明即使用户跨平台使用，网络效应也没有带来额外的改善。
+
+-   **新用户**：交易数、匹配率均无显著变化。说明用户对平台的偏好并非源于使用习惯，而是平台本身特征，进一步证明 “差异化损失是固有成本”，无法通过新用户适应消除。
+
+## 分时期汇总估计
+
+（附录表A.1 \~ A.5）
+
+-   划分三个时期：收购宣布前3个月（基准期）、收购宣布后平台关闭前、DogVacay关闭后。估计这三个时期的平均处理效应。估计方程如下：
+
+    $$
+    y_{zt}-y_{z't}=\alpha+\beta_1 1\{t \in 3\ Months\ PreBaseline\}+\beta_2 1\{t \in Transition\}+\beta_3 1\{t \in PostMerger\}+\epsilon_{zz't}
+    $$
+
+-   对三个假设分别进行检验。结论与论文主体相一致。
+
+## 基于搜索数据的结果
+
+（附录图B.1，表B.1）：
+
+-   作者根据Rover平台的搜索数据，评估合并对用户搜索转化率（哑变量，当搜索用户在该年月至少发起一次预订咨询或入住时，该变量取值为1）的影响。
+
+-   结果显示，在收购前 Rover 市场份额最低的市场中，转化率最多提高了 3 个百分点。但在其他分组以及其他类别的结果中，合并对转化率都没有显著影响。
+
+## 异质性分析
+
+（附录图A.8）
+
+### 市场规模
+
+-   网络效应的收益可能随着平台规模的变化而变化。例如，可能存在一个最低的卖家数量足以覆盖特征空间。如果平台达到这一规模，那么增加更多用户可能不会提高平均效用。如果情况如此，我们预期在合并后，小市场的平台级网络效应会更大。与小市场相比，网络效应更有可能足够大，从而在小市场中证明单一平台的合理性。
+
+-   以2016 年交易数为依据，50-250 笔为 “小市场”（占 81%），\>250 笔为 “大市场”（占 19%）。对不同规模市场分别进行回归。结果发现不同规模市场间并没有显著区别。这可能是由于样本自选择的问题，即由于合并时点较晚或者市场本身潜力使合并收益大小与市场规模不相关。
+
+### 用户多归属倾向
+
+-   不考虑现实情况的限制，如果买方或卖方中的一方完全跨平台使用，那么市场上的每个用户都可以找到其他所有用户，那么合并两个平台应该不会影响用户数量和类型。因此作者预测低多归属倾向的市场中网络效应会更加明显。
+
+-   鉴于卖家更可能进行多地址销售，作者以 2016 年 “多归属卖家占比” 为依据，\<10% 为 “低多归属市场”，≥10% 为 “高多归属市场”，分别进行回归。结果发现无论卖家是否具有多平台倾向，两组间的并购效应幅度没有明显差异。这可能是由于即使在多平台市场，多平台卖家通常只占所有卖家的少数。
+
+## 稳健性检验
+
+### 扩展协变量
+
+（附录图A.9）
+
+-   原协变量“活跃卖方数”，补充匹配 “活跃买家数“ + ”外部选项代理变量（每千个工作中的动物看护者数量）“。
+
+-   匹配后处理组与控制组差异缩小（附录表C.4），排除遗漏变量偏误，并且结论依然成立。
+
+### 无匹配DID
+
+（附录图A.10）
+
+-   不使用匹配方法以避免“匹配方法依赖”，允许处理组与控制组趋势不平行的情况下进行DID回归。验证了模型1、3的结果稳健性。回归模型如下：
+
+    $y_{zt}=\beta_{s(z)t}+\gamma_{s(z)}t+\delta_{s(z)}1\{t \geq Dec2016\}+\mu_t+\mu_z+\epsilon_{zt}$
+
+### 合成DID方法
+
+（附录图A.11）
+
+-   Arkhangelsky等人2021年发展的一种方法（`synthdid`包）。这种方法结合了合成控制和DID的优点：与合成控制法类似，它构建了一个对照组，该对照组与处理组在处理前的趋势上相匹配；与双重差分法类似，它允许存在单位层面的变动（即处理组和对照组之间的水平差异），并且能够对多个处理单位进行推断。该方法也灵活地估计了预处理所赋予的权重时间段，减少了对研究人员在预处理期长度选择上的灵活性的担忧。
+
+### 改变市场划分标准
+
+（附录图A.12 \~ A.13）
+
+<!-- SUTVA: -->
+
+<!-- 1.无干涉性：一个个体的结局不会因为其他个体接受了何种处理而发生变化 -->
+
+<!-- 2.无多种处理形式：对于每个个体，其所接受的处理只有一种形式，并且这种形式对所有个体都是相同的。 -->
+
+-   以邮编区域作为市场单位会存在**SUTVA 违背**：假设有两个相邻的邮政编码区A和B，在收购前Rover 分别占据A区域50%、B区域75%的市场份额。收购前A区域的用户可能会选择B区域的用户。但在收购后，A 区域用户增加幅度较大，这可能会使这些用户转回A区域。 这将导致A区域的增长被高估。
+
+-   使用Chavent等人2018年提出的聚类方法（`ClustGeo`包），基于搜索的共现频率和地理相邻性聚类，构建新的市场并确保至少 65% 的搜索不跨区域。在市场-月度层面回归。
+
+# 启示与建议
+
+## 平台合并战略
+
+-   **合并 VS 不合并**：大多情况下运营多个平台可能比将它们合并更有利，这为许多被收购平台仍保持运营的收购案例提供了合理依据。当管理层决定关闭平台时，重点应提高用户转向存续平台的积极性，例如调整算法、提供折扣；若决定不关闭平台，重点应促进用户多归属。
+
+-   **“赢者通吃”？**：即使存在网络效应，用户异质偏好仍支持多平台共存。新平台也可通过识别用户的差异化偏好成功进入市场。
+
+-   **不同行业的差异**：平台差异化在 “本地、时间敏感型服务平台”（如儿童看护、家装服务）中更显著（用户与卖家更易形成长期关系）。 而在 “低重复交易平台”（如网约车）中，差异化影响较弱，网络效应可能更占优，因用户对特定司机的依赖度低，平台功能差异对用户选择影响小。
+
+## 反垄断监管
+
+-   **拒绝仅以 “网络效应” 批准平台并购：**即使网络效应存在，差异化损失仍可能完全抵消其收益，因此反垄断机构不能仅以 “网络效应提升用户福利” 批准并购，需量化评估 “差异化损失”。
+
+-   **关注 “小并购” 的隐性垄断风险：**宠物托管市场的合并没有触发审查阈值，类似合并可能导致”隐形垄断“的产生，因此要加强低阈值并购的监管。
+
+-   **区分平台类型的监管**：对于不同行业，平台差异化的影响不同，需要分别看待。除此之外，线上平台若无线下替代的选择，平台合并可能导致更高的垄断风险。

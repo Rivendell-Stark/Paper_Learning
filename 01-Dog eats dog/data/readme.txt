@@ -1,0 +1,6 @@
+作者提供的模拟数据可以在网站上找到。只需要其中4个文件就可以了。
+
+needs_convos_stays_clean.csv
+needs_convos_stays_agg_zip_seller_buyersbyplat_1year.csv
+matched_buyer_attrition.csv
+stays_convos_needs_agg_bygrid_zip_seller.csv
